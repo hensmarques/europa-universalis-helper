@@ -111,6 +111,11 @@ function App() {
     const isDraggingRef = useRef(false);
     const dragStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
     const dragOriginRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+    const pinchActiveRef = useRef(false);
+    const pinchStartDistanceRef = useRef(0);
+    const pinchStartScaleRef = useRef(1);
+    const pinchCenterRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+    const pinchOriginRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
 
     const nameIndexes = useCompiledNameIndexes(
         provincesObject,
@@ -252,7 +257,7 @@ function App() {
 
     return (
         <div className="App">
-            <AppBar position="static" color="default" elevation={0}>
+            <AppBar position="fixed" color="default" elevation={0}>
                 <Toolbar style={{ gap: 8 }}>
                     <Tooltip title="Clear">
                         <span>
@@ -261,6 +266,7 @@ function App() {
                                 size="small"
                                 onClick={() => {
                                     setSearch("");
+                                    setObjectInformation(null);
                                     setTimeout(() => searchInputRef.current?.focus(), 0);
                                 }}
                                 disabled={!search}
@@ -375,10 +381,39 @@ function App() {
             <SearchHelpDialog open={helpOpen} onClose={() => setHelpOpen(false)} />
             <div
                 ref={mapContainerRef}
-                style={{ position: "relative", margin: "0px 0 48px 0", width: "100%", overflow: "hidden" }}
+                style={{ position: "relative", margin: `60px 0 ${objectInformation ? '68px' : '0'} 0`, width: "100%", maxHeight: "calc(100vh - 60px)", maxWidth: "100vw", overflow: "hidden", touchAction: "none" }}
                 onMouseLeave={() => { isDraggingRef.current = false; }}
                 onMouseUp={() => { isDraggingRef.current = false; }}
-                onTouchEnd={() => { isDraggingRef.current = false; }}
+                onTouchEnd={() => { isDraggingRef.current = false; pinchActiveRef.current = false; }}
+                onWheel={(e) => {
+                    const container = mapContainerRef.current;
+                    const img = mapImageRef.current;
+                    if (!container || !img) return;
+                    e.preventDefault();
+                    const rect = container.getBoundingClientRect();
+                    const mouseX = e.clientX - rect.left;
+                    const mouseY = e.clientY - rect.top;
+                    const delta = e.deltaY;
+                    const sensitivity = 0.0008; // lower = less sensitive
+                    // Normalize for different deltaModes (0: pixel, 1: line, 2: page)
+                    const normalizedDelta = delta * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 800 : 1);
+                    const zoom = Math.exp(-normalizedDelta * sensitivity);
+                    const newScale = Math.max(1, Math.min(4, mapTransform.scale * zoom));
+                    if (newScale === mapTransform.scale) return;
+                    const worldX = (mouseX - mapTransform.x) / mapTransform.scale;
+                    const worldY = (mouseY - mapTransform.y) / mapTransform.scale;
+                    let newX = mouseX - worldX * newScale;
+                    let newY = mouseY - worldY * newScale;
+                    const cw = container.clientWidth;
+                    const ch = container.clientHeight;
+                    const iw = img.clientWidth * newScale;
+                    const ih = img.clientHeight * newScale;
+                    const minX = Math.min(0, cw - iw);
+                    const minY = Math.min(0, ch - ih);
+                    newX = Math.max(minX, Math.min(0, newX));
+                    newY = Math.max(minY, Math.min(0, newY));
+                    setMapTransform({ x: newX, y: newY, scale: newScale });
+                }}
             >
                 <div
                     style={{ position: "relative", width: "100%", transform: `translate(${mapTransform.x}px, ${mapTransform.y}px) scale(${mapTransform.scale})`, transformOrigin: "0 0", cursor: mapTransform.scale > 1 ? (isDraggingRef.current ? "grabbing" : "grab") : "default" }}
@@ -408,33 +443,75 @@ function App() {
                         setMapTransform((prev) => ({ ...prev, x: clampedX, y: clampedY }));
                     }}
                     onTouchStart={(e) => {
-                        if (mapTransform.scale <= 1) return;
-                        const t = e.touches[0];
-                        if (!t) return;
-                        isDraggingRef.current = true;
-                        dragStartRef.current = { x: t.clientX, y: t.clientY };
-                        dragOriginRef.current = { x: mapTransform.x, y: mapTransform.y };
+                        const container = mapContainerRef.current;
+                        if (!container) return;
+                        if (e.touches.length === 2) {
+                            pinchActiveRef.current = true;
+                            isDraggingRef.current = false;
+                            const [t1, t2] = [e.touches[0], e.touches[1]];
+                            const rect = container.getBoundingClientRect();
+                            const cx = ((t1.clientX + t2.clientX) / 2) - rect.left;
+                            const cy = ((t1.clientY + t2.clientY) / 2) - rect.top;
+                            pinchCenterRef.current = { x: cx, y: cy };
+                            const dx = t2.clientX - t1.clientX;
+                            const dy = t2.clientY - t1.clientY;
+                            pinchStartDistanceRef.current = Math.hypot(dx, dy);
+                            pinchStartScaleRef.current = mapTransform.scale;
+                            pinchOriginRef.current = { x: mapTransform.x, y: mapTransform.y };
+                        } else if (e.touches.length === 1 && mapTransform.scale > 1) {
+                            const t = e.touches[0];
+                            isDraggingRef.current = true;
+                            dragStartRef.current = { x: t.clientX, y: t.clientY };
+                            dragOriginRef.current = { x: mapTransform.x, y: mapTransform.y };
+                        }
                     }}
                     onTouchMove={(e) => {
-                        if (!isDraggingRef.current || mapTransform.scale <= 1) return;
-                        const t = e.touches[0];
-                        if (!t) return;
                         const container = mapContainerRef.current;
                         const img = mapImageRef.current;
                         if (!container || !img) return;
-                        const dx = t.clientX - dragStartRef.current.x;
-                        const dy = t.clientY - dragStartRef.current.y;
-                        const tentativeX = dragOriginRef.current.x + dx;
-                        const tentativeY = dragOriginRef.current.y + dy;
-                        const cw = container.clientWidth;
-                        const ch = container.clientHeight;
-                        const iw = img.clientWidth * mapTransform.scale;
-                        const ih = img.clientHeight * mapTransform.scale;
-                        const minX = Math.min(0, cw - iw);
-                        const minY = Math.min(0, ch - ih);
-                        const clampedX = Math.max(minX, Math.min(0, tentativeX));
-                        const clampedY = Math.max(minY, Math.min(0, tentativeY));
-                        setMapTransform((prev) => ({ ...prev, x: clampedX, y: clampedY }));
+                        if (pinchActiveRef.current && e.touches.length === 2) {
+                            e.preventDefault();
+                            const [t1, t2] = [e.touches[0], e.touches[1]];
+                            const dx = t2.clientX - t1.clientX;
+                            const dy = t2.clientY - t1.clientY;
+                            const dist = Math.hypot(dx, dy);
+                            let newScale = (dist / pinchStartDistanceRef.current) * pinchStartScaleRef.current;
+                            newScale = Math.max(1, Math.min(4, newScale));
+                            const rect = container.getBoundingClientRect();
+                            const cx = ((t1.clientX + t2.clientX) / 2) - rect.left;
+                            const cy = ((t1.clientY + t2.clientY) / 2) - rect.top;
+                            const centerX = cx; // keep zoom around current pinch center
+                            const centerY = cy;
+                            const worldX = (centerX - pinchOriginRef.current.x) / pinchStartScaleRef.current;
+                            const worldY = (centerY - pinchOriginRef.current.y) / pinchStartScaleRef.current;
+                            let newX = centerX - worldX * newScale;
+                            let newY = centerY - worldY * newScale;
+                            const cw = container.clientWidth;
+                            const ch = container.clientHeight;
+                            const iw = img.clientWidth * newScale;
+                            const ih = img.clientHeight * newScale;
+                            const minX = Math.min(0, cw - iw);
+                            const minY = Math.min(0, ch - ih);
+                            newX = Math.max(minX, Math.min(0, newX));
+                            newY = Math.max(minY, Math.min(0, newY));
+                            setMapTransform({ x: newX, y: newY, scale: newScale });
+                        } else if (isDraggingRef.current && mapTransform.scale > 1 && e.touches.length === 1) {
+                            e.preventDefault();
+                            const t = e.touches[0];
+                            const dx = t.clientX - dragStartRef.current.x;
+                            const dy = t.clientY - dragStartRef.current.y;
+                            const tentativeX = dragOriginRef.current.x + dx;
+                            const tentativeY = dragOriginRef.current.y + dy;
+                            const cw = container.clientWidth;
+                            const ch = container.clientHeight;
+                            const iw = img.clientWidth * mapTransform.scale;
+                            const ih = img.clientHeight * mapTransform.scale;
+                            const minX = Math.min(0, cw - iw);
+                            const minY = Math.min(0, ch - ih);
+                            const clampedX = Math.max(minX, Math.min(0, tentativeX));
+                            const clampedY = Math.max(minY, Math.min(0, tentativeY));
+                            setMapTransform((prev) => ({ ...prev, x: clampedX, y: clampedY }));
+                        }
                     }}
                 >
                 {result?.map((item: NameIndex, index: number) => {

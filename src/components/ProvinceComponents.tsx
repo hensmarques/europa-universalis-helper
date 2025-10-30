@@ -1,6 +1,4 @@
-import { Kingdom, Province } from "../types";
-
-import React from "react";
+import { Province } from "../types";
 import { kingdoms as kingdomsObject } from "../kingdoms";
 import { provinces as provincesObject } from "../provinces";
 import { useSearch } from "../SearchContext";

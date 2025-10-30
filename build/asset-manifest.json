@@ -1,16 +1,16 @@
 {
   "files": {
     "main.css": "/europa-universalis-helper/static/css/main.c0e8a513.css",
-    "main.js": "/europa-universalis-helper/static/js/main.d0173934.js",
+    "main.js": "/europa-universalis-helper/static/js/main.ec2ab208.js",
     "static/js/453.eb7969ee.chunk.js": "/europa-universalis-helper/static/js/453.eb7969ee.chunk.js",
     "static/media/map.png": "/europa-universalis-helper/static/media/map.7169cfcb5829f29994d3.png",
     "index.html": "/europa-universalis-helper/index.html",
     "main.c0e8a513.css.map": "/europa-universalis-helper/static/css/main.c0e8a513.css.map",
-    "main.d0173934.js.map": "/europa-universalis-helper/static/js/main.d0173934.js.map",
+    "main.ec2ab208.js.map": "/europa-universalis-helper/static/js/main.ec2ab208.js.map",
     "453.eb7969ee.chunk.js.map": "/europa-universalis-helper/static/js/453.eb7969ee.chunk.js.map"
   },
   "entrypoints": [
     "static/css/main.c0e8a513.css",
-    "static/js/main.d0173934.js"
+    "static/js/main.ec2ab208.js"
   ]
 }

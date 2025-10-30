@@ -27,7 +27,7 @@ export const KingdomInformation = ({ object }: { object: string }) => {
                 <strong>Kingdom:</strong> {result?.name}
             </p>
             <p>
-                <strong>Tax Value:</strong> {result?.taxValue}
+                <strong>Tax Value:</strong> {result?.taxValue} + (Vassals: {result?.vassalsTaxValue})
             </p>
             <p>
                 <strong>Capital:</strong> {result?.capital}

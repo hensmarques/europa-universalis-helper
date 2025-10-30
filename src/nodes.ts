@@ -157,13 +157,6 @@ export const nodes: TradeNode[] = [
     maritime: false,
   },
   {
-    name: "Wien",
-    distant: true,
-    top: 49.3,
-    left: 54.2,
-    maritime: false,
-  },
-  {
     name: "South America",
     distant: true,
     top: 23.9,

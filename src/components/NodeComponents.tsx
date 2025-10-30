@@ -39,7 +39,7 @@ export const NodeResult = ({ node }: { node: string }) => {
                 top: String(result.top) + "%", left: String(result.left) + "%",
                 border: ".35vw solid " + typeColor('city'), borderRadius: "50%",
                 width: getSize(),
-                aspectRatio: '1/1',
+                height: getSize(),
                 boxShadow: '0 0 0 .35vw ' + typeColor('node'),
             }}></div>
     );
